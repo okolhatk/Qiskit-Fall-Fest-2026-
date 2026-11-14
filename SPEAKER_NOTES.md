@@ -2,119 +2,162 @@
 
 **Six slides. Target: 4:15; acceptable range: 4:00–4:30, excluding questions.**
 Follow [PRESENTATION_README.md](PRESENTATION_README.md) for slide content.
-Read only the quoted paragraphs. Bracketed cues are actions, not spoken text.
-Rehearse at approximately 130 words per minute with brief diagram pauses;
-actual duration depends on delivery. The Q&A below is backup, not part of the talk.
+
+## How to use these expanded notes
+
+Each slide has two layers:
+
+1. **Timed script — say this:** read or paraphrase only the quoted paragraphs.
+2. **Background — do not read during the timed talk:** explanations to help you
+   understand the claims, rehearse naturally, and answer questions.
+
+The timed script is **524 words**. At about 130 words per minute, it
+leaves a small allowance for pointing and slide transitions within the target.
+Numbers and technical terms may take longer to say than their word counts suggest;
+rehearse aloud with a timer. Added background and Q&A do not belong in the timed talk.
+
+The slide checkpoints remain **0:30, 1:15, 2:05, 3:05, 3:45, and 4:15**.
+If running late, skip the slide 5 benchmark paragraph; keep the result, Qiskit
+integration, verification evidence, and model limitations. Do not speed-read
+extra background to fit it in.
 
 ## Slide 1 — Problem and fixed workload
 
 **30 seconds | 0:00–0:30**
 
-“Our project asks whether better placement of logical-qubit patches can reduce
-both space and measurement time.
+### Timed script — say this
 
-Every layout runs the same workload: ZZ on A-B and C-D, followed by XX on B-C
-and A-D. Both first-round measurements must finish before the second round.
+“Our project asks whether arranging logical-qubit patches differently can save both space and time. A patch represents encoded quantum information, not one physical qubit.
 
-We measure board area in tiles and elapsed time in abstract steps. Multiplying
-them gives tile-steps, our combined resource metric.”
+We compare the same workload: ZZ measurements on A-B and C-D, followed by XX on B-C and A-D. The second round must wait for the first.
 
-[Point to the dependency arrow.]
+Our combined metric is tile-steps: total board area multiplied by the number of measurement rounds.”
+
+**Delivery cue:** Point to the arrow between rounds when saying “must wait.” Then point to the tile-steps formula. Do not explain every quantum term yet.
+
+### Background — do not read during the timed talk
+
+- **Why the workload stays fixed:** changing the operations would make it unclear whether an improvement came from placement or from doing less work. Only the layouts change in this comparison.
+- **Why use a product:** latency alone hides the cost of allocating more workspace. Tile-steps counts the entire board for every elapsed step, including idle space.
+- **What the dependency means:** both first-round measurements must finish before either second-round operation starts. The code preserves that order; it does not infer which operations may be reordered.
+- **Avoid:** calling a tile a physical qubit or a logical step a measured number of microseconds.
 
 ## Slide 2 — Diagram and method
 
 **45 seconds | 0:30–1:15**
 
-“Yellow tiles are logical data patches. Solid horizontal edges are Z boundaries;
-dotted vertical edges are X boundaries. Colored tiles are auxiliary routes.
-White tiles are idle, but still count toward area.
+### Timed script — say this
 
-Our idea is to place ZZ partners vertically and XX partners horizontally, so
-each round has two disjoint routes.
+“Yellow tiles are data patches. Solid horizontal edges expose Z boundaries; dotted vertical edges expose X boundaries. Colored tiles provide auxiliary measurement paths. White tiles are unused but still count.
 
-We use breadth-first search for shortest paths, ordered greedy scheduling,
-and independent validation. These are deterministic and inexpensive to check.
+Placing ZZ partners vertically and XX partners horizontally gives each round two nonoverlapping paths, allowing simultaneous measurements.
 
-The model keeps patches fixed. Each joint measurement costs one step, regardless
-of path length, with no additional preparation or release cost.”
+Breadth-first search finds shortest paths by exploring nearby cells first. Our greedy scheduler reserves available paths in input order; a separate validator checks the result.
 
-[Point to one boundary of each type, then the two routes in each panel.]
+Patches remain fixed. Every joint measurement costs one step regardless of path length, with no additional preparation or release cost.”
+
+**Delivery cue:** Trace A-B and C-D in step 1, then B-C and A-D in step 2. Point to the relevant solid or dotted edge. These are two snapshots of the same board.
+
+### Background — do not read during the timed talk
+
+- **Why orientation matters:** a vertical pair can meet through its facing north/south Z boundaries; a horizontal pair can meet through its east/west X boundaries. The pairing pattern matches the workload.
+- **What “nonoverlapping” requires:** concurrent operations must share neither data patches nor auxiliary tiles. Different route colors identify operations, not X versus Z or an error state.
+- **What BFS guarantees:** on this unweighted grid, it finds a shortest available route. It does not guarantee that choosing this route produces the best overall schedule for every workload.
+- **Why keep the validator separate:** a scheduling bug should not be accepted merely because the scheduler generated the output. Validation checks geometry, dependencies, conflicts, and completeness independently.
+- **Model boundary:** incidental contact with another patch is assumed inactive. Direct adjacent-patch surgery without an auxiliary path is not implemented.
 
 ## Slide 3 — What Qiskit contributes
 
 **50 seconds | 1:15–2:05**
 
-“Qiskit verifies the measurement building blocks represented by these board
-operations. Each circuit has two data qubits and one ancilla.
+### Timed script — say this
 
-In the ZZ circuit, two CNOTs collect joint parity on the ancilla. Hadamard gates
-change the basis for XX measurement. Gates before the barrier prepare the input.
+“Qiskit checks the quantum operation behind our routes. Each circuit has two data qubits and an ancilla: an auxiliary qubit that collects parity information.
 
-We construct and transpile the circuits with Qiskit, then run Aer's local
-stabilizer simulator. Six cases cover even, odd, and Bell inputs for both bases,
-with 1,024 shots each. Even and Bell cases return zero; odd cases return one,
-as expected.
+Two CNOTs collect ZZ parity without separately measuring the data qubits. Hadamard gates change the basis for XX. Gates before the barrier prepare the input.
 
-These are representative parity checks, not a fully encoded fault-tolerant
-lattice-surgery simulation.”
+We build and transpile these circuits, then run Qiskit Aer's stabilizer simulator. Six cases test even, odd, and Bell inputs in both bases, with 1,024 shots each. All even and Bell outcomes are zero; all odd outcomes are one, matching expectations.
 
-[Point to the ancilla and the actual results table. The printed zero by the
-measurement arrow is a classical-bit index, not an outcome.]
+These checks verify representative parity outcomes, not encoded fault-tolerant lattice surgery.”
+
+**Delivery cue:** Point to q0/q1, then q2 and its meter. Show the two parity CNOTs after the barrier and the additional H gates in the XX circuit. Read outcomes from the counts table, not the small zero by the measurement arrow.
+
+### Background — do not read during the timed talk
+
+- **Parity in everyday terms:** in the Z basis, equal bits (`00` or `11`) have even parity; different bits (`01` or `10`) have odd parity. The ancilla reveals that relationship rather than the individual data values.
+- **Outcome convention:** ancilla `0` corresponds to the measured observable's eigenvalue +1; `1` corresponds to -1. XX uses the analogous parity in the X basis, so the even/odd input preparation changes accordingly.
+- **Bell preparation:** H on q0 followed by a CNOT from q0 to q1 creates the Bell input before the barrier. This particular Bell state has eigenvalue +1 for both ZZ and XX.
+- **Why repeated outcomes are expected:** these chosen inputs are parity eigenstates and the simulation is ideal. A shot is one repeated circuit execution; 1,024 equal results do not demonstrate noise resilience.
+- **Why this simulator:** the representative circuits contain Clifford operations, which suit stabilizer simulation. The board scheduler remains classical Python.
+- **Evidence limit:** checking these outcomes alone does not prove arbitrary-state preservation or a physical implementation of a routed encoded patch. The diagram's classical-bit index is not a recorded measurement result.
 
 ## Slide 4 — Results and insight
 
 **60 seconds | 2:05–3:05**
 
-“The compact layout uses 15 tiles and four steps: 60 tile-steps. The spacious
-layout uses 35 tiles and three steps: 105 tile-steps. Extra space saves time,
-but increases total space-time volume.
+### Timed script — say this
 
-Our aligned layout uses nine tiles and two steps: 18 tile-steps. Its center
-remains idle but is counted. Compared with compact, that means 40 percent less
-area, 50 percent fewer steps, and 70 percent fewer tile-steps.
+“Compact uses 15 tiles and four steps: 60 tile-steps. Spacious uses 35 tiles and three steps: 105 tile-steps. More workspace reduces waiting but increases the total space-time cost.
 
-The insight is to match placement to the workload, rather than simply add space.
+Our aligned layout uses nine tiles and two steps: 18 tile-steps, including the idle center. Against compact, that saves 40 percent of the area, 50 percent of the steps, and 70 percent of the tile-steps.
 
-Two dependent rounds require at least two steps. Independent checks reject all
-4,104 smaller eligible placements; one-row and one-column boards lack the
-required ports. Our layout therefore reaches both area and time lower bounds
-within this restricted model.”
+The insight is that placement should match the measurement workload.
 
-[Pause on 60 versus 18. Keep “within this model” visible.]
+Two dependent rounds require at least two steps. Independent checks find at least one unroutable measurement in every one of 4,104 smaller eligible placements. Single-row or single-column boards lack required ports. Thus, both lower bounds are reached within our restricted model.”
+
+**Delivery cue:** Move down the table in order: compact, spacious, aligned. Pause briefly on 60 → 18. Keep the words “within our restricted model” visible when discussing lower bounds.
+
+### Background — do not read during the timed talk
+
+- **Explain the mechanism if asked:** compact's ZZ pair competes for its middle corridor. Spacious separates those corridors, but its generated schedule still separates the XX pair. Aligned gives both rounds disjoint routes.
+- **Check the percentages:** `(15−9)/15 = 40%`; `(4−2)/4 = 50%`; `(60−18)/60 = 70%`. Spacious increases tile-steps by `(105−60)/60 = 75%` relative to compact.
+- **Why the area certificate is stronger than a greedy failure:** the independent BFS asks whether each measurement could route by itself. An individually impossible route cannot become possible merely by choosing a different concurrent schedule on the same fixed board.
+- **What was enumerated:** all four-label placements on 2×2, 2×3, 3×2, 2×4, and 4×2 boards. One-row boards lack Z ports, one-column boards lack X ports, and fewer than four tiles cannot hold four distinct patches.
+- **Exact scope:** rectangular boards, fixed single-tile patches, fixed boundary orientation, nonempty auxiliary paths, and this workload. No general optimality claim applies to rotations, moves, adjacent-patch surgery, or other workloads.
 
 ## Slide 5 — Implementation and testing
 
 **40 seconds | 3:05–3:45**
 
-“We also removed redundant software work through occupancy sets, ordered ready
-lists, streaming validation, and simpler grid drawing.
+### Timed script — say this
 
-Against the previously optimized version, a contended scheduling benchmark was
-about three times faster with 33 percent less peak Python memory. This is a
-component benchmark, separate from logical measurement time.
+“We also reduced classical overhead. Occupancy sets replace repeated patch scans; ready lists avoid repeatedly sorting waiting operations; streaming validation avoids copying paths.
 
-All 11 tests pass normally and with Python optimization enabled. They include
-1,600 independent route comparisons, 300 randomized schedules, and invalid-output
-checks. The six quantum parity cases also pass, and the latest software changes
-preserve the numerical results.”
+On 300 contending operations, scheduling was about three times faster with 33 percent less peak Python memory than the previously optimized version. This is a component benchmark, not quantum execution time.
 
-[If running late, omit the benchmark paragraph; retain the testing evidence.]
+All 11 tests pass normally and with Python optimization enabled, including 1,600 independent route comparisons and 300 randomized schedules. The quantum checks pass, and numerical outputs remain unchanged by these software refinements.”
+
+**Delivery cue:** Point to the benchmark's baseline and the test totals. Emphasize “classical” and “component benchmark.” If behind schedule, omit the benchmark paragraph and retain the correctness evidence.
+
+### Background — do not read during the timed talk
+
+- **What the changes remove:** occupancy sets avoid searching all patch positions; ordered deferred lists avoid re-sorting the same waiting operations; validation avoids growing-set unions and duplicate path lists. Grid lines also replace individual background rectangles when drawing.
+- **Complexity distinction:** occupancy caching reduced routing from O(A×P) to expected O(A), where A is area and P is patch count. The latest early-exit routing changes improve constants, not that worst-case bound. Scheduling still has potentially many retries under contention.
+- **Memory scope:** the benchmark measures peak Python allocations separately from timing. It excludes native-library memory and does not represent physical-qubit usage or total process memory.
+- **What the tests establish:** exact routes match an independent BFS; randomized schedules match the reference policy; invalid outputs are rejected. Explicit validation stays active under `-O`, which can disable ordinary Python assertions.
+- **Keep the baselines separate:** the 70% tile-step gain compares layouts against original compact. The latest software benchmark compares implementations against the already-optimized version. Neither is a hardware measurement.
 
 ## Slide 6 — Trade-offs and conclusion
 
 **30 seconds | 3:45–4:15**
 
-“The main trade-offs are specialization to these pairings and extra dependency
-bookkeeping. The scheduler remains greedy for other workloads. We do not model
-physical noise, decoding, movement, or hardware timing.
+### Timed script — say this
 
-Next, we would test broader workloads and more realistic costs.
+“The main trade-off is specialization: a different measurement workload may need a different placement. Dependency tracking also needs extra bookkeeping, and greedy scheduling is not generally optimal.
 
-Our contribution is a verified placement improvement: 70 percent fewer tile-steps
-than compact, plus lower classical computation overhead while preserving the
-tested behavior.”
+We do not model physical noise, decoding, movement, or hardware timing. Those are next steps, alongside broader workloads.
 
-[Finish on the aligned diagram and the 70% result.]
+Our result is a verified placement improvement: 70 percent fewer tile-steps than compact, with lower classical overhead and preserved tested behavior.”
+
+**Delivery cue:** Return to the aligned diagram and the 70% callout. Finish the sentence, pause, and invite questions. Do not add backup material to fill time.
+
+### Background — do not read during the timed talk
+
+- **Why this is the selected balance:** the placement reaches the model's area and time lower bounds, so a more expensive global search cannot improve those bounds for this exact workload. The software refinements remove redundant work without approximate routing or fewer shots.
+- **What still costs memory:** the scheduler stores dependency relationships. The newer representation lowers measured overhead, but graph storage remains proportional to operations and unique dependency edges.
+- **Why the limitation matters:** a physical system needs a justified noise, timing, and error-correction model. Ideal parity checks and an abstract grid do not establish hardware fault tolerance.
+- **Recommended next experiment:** keep the assumptions fixed while varying workloads and layouts; then introduce additional physical/game costs explicitly. This separates a broader placement effect from an effect caused by changing the rules.
+- **Closing emphasis:** the result combines a scoped resource improvement, clear reasoning, and regression evidence. Avoid claiming a universal breakthrough or quantum advantage.
 
 ## Questions and short answers — outside the timed presentation
 

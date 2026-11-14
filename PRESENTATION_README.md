@@ -2,7 +2,9 @@
 
 **Format: six slides, 4:00–4:30 total. Target: 4:15, excluding questions.**
 The matching spoken script is in [SPEAKER_NOTES.md](SPEAKER_NOTES.md).
-Use the short script rather than reading every slide annotation aloud.
+The speaker notes contain a 524-word timed script plus expanded background
+under each slide. Speak only the timed script; use the background for rehearsal
+and questions. The additional explanations do not extend the presentation.
 
 **Central message:** workload-aware placement reduced tile-steps by 70%
 compared with the original compact layout, with bounds established within our
