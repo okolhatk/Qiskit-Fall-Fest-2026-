@@ -103,7 +103,8 @@ claim the greedy algorithm is generally optimal or generalize from this workload
 
 These are classical computation costs, separate from logical tile-steps.
 Let A be board area, P patch count, M operation count, D the number of unique
-dependency edges, T scheduled steps, and R the total ready-operation visits
+dependency edges, E the total dependency entries supplied (including repeats),
+T scheduled steps, and R the total ready-operation visits
 across all steps (R <= M*T).
 
 - **Routing:** previously O(A*P) worst-case time because every occupancy query
@@ -117,13 +118,14 @@ across all steps (R <= M*T).
   the result in place. This reduces work and temporary allocations without a
   new cache. Worst-case time/space remain O(A), not a further Big-O reduction.
 - **Scheduling:** previously scans all M operations in every step and rebuilds
-  dependency sets, costing O(T*(M+D)) overhead plus routing. Dependency-name
-  validation also previously cost O(M*D). The first pass used a sorted ready
-  set, with O(M+D+R*log(M+1)) overhead. The second pass keeps deferred operations
+  dependency sets, costing O(T*(M+E)) overhead plus routing. Dependency-name
+  validation also previously cost O(M*E). The first pass used a sorted ready
+  set, with O(M+E+R*log(M+1)) overhead. The second pass keeps deferred operations
   in order and sorts only newly released operations, then merges the two lists.
   Each operation enters the newly-ready list only once. Bookkeeping is now
-  O(M+D+R+M*log(M+1)) in general, plus at most O(R*A) routing. A chain has
-  O(M+D) bookkeeping. Compact indexed lists replace name-keyed state, completed
+  O(M+E+R+M*log(M+1)) in general, plus at most O(R*A) routing. A chain without
+  repeated dependency entries has O(M+D) bookkeeping. Compact indexed lists
+  replace name-keyed state, completed
   operations are counted rather than stored again, and consumed dependency
   lists are released. Auxiliary graph space remains O(M+D), with smaller
   constants. Contention can still make R quadratic; this is not an optimal
@@ -132,7 +134,7 @@ across all steps (R <= M*T).
   causing up to O(M^2) work across a schedule. Separate membership queries
   remove that cost. Path cells stream into the per-step reservation set;
   there is no duplicate path list or per-path uniqueness set. With K total
-  path cells, validation is expected O(M+D+K) time and O(M+A) auxiliary space.
+  path cells, validation is expected O(M+E+K) time and O(M+A) auxiliary space.
   Explicit checks raise ValueError even under Python -O and also reject
   incorrect basis/patch metadata. This strengthens checking without changing
   valid schedule output; callers catching AssertionError should use ValueError.
