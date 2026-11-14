@@ -13,6 +13,7 @@ from numpy.linalg import matrix_rank
 from numpy.linalg import matrix_power as m_power
 
 from qiskit.quantum_info import Statevector
+from gf2 import binary_rank
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -86,18 +87,8 @@ def minimum_distance(code: List[Union[str, List[int], Tuple[int]]]) -> int:
 
 # matrix rank over GF(2) 
 def matrixRank(mat):
-    M=mat.copy() # mat should be an np.array
-    m=len(M) # number of rows
-    pivots={} # dictionary mapping pivot row --> pivot column
-    # row reduction
-    for row in range(m):
-        pos = next((index for index,value in enumerate(M[row]) if value != 0), -1) #finds position of first nonzero element (or -1 if all 0s)
-        if pos>-1:
-            for row2 in range(m):
-                if row2!=row and M[row2][pos]==1:
-                    M[row2]=((M[row2]+M[row]) % 2)
-            pivots[row]=pos
-    return len(pivots)
+    """Rank of a binary matrix over GF(2), using packed XOR elimination."""
+    return binary_rank(mat)
 
 
 

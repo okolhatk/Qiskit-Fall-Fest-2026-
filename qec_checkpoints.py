@@ -7,6 +7,7 @@ Each function checks one exercise and prints whether it passed.
 from __future__ import annotations
 
 import numpy as np
+from gf2 import binary_rank
 
 _STATUS = {}
 
@@ -302,17 +303,7 @@ def _as_binary_matrix(value):
 
 def _matrix_rank(matrix):
     """Rank over GF(2), matching lab4_util.matrixRank."""
-    reduced = matrix.copy()
-    pivots = {}
-    for row in range(len(reduced)):
-        pivot = next((index for index, value in enumerate(reduced[row]) if value != 0), -1)
-        if pivot < 0:
-            continue
-        for other in range(len(reduced)):
-            if other != row and reduced[other][pivot] == 1:
-                reduced[other] = (reduced[other] + reduced[row]) % 2
-        pivots[row] = pivot
-    return len(pivots)
+    return binary_rank(matrix)
 
 
 def _check_checks(name, checks_x, checks_z, reference_x, reference_z, weight, code_name):

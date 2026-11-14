@@ -10,7 +10,8 @@ import argparse
 import csv
 import json
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
 from pathlib import Path
 
 import matplotlib
@@ -31,6 +32,20 @@ class Layout:
     width: int
     height: int
     patches: dict[str, Cell]
+    _occupied: frozenset[Cell] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self):
+        if self.width <= 0 or self.height <= 0:
+            raise ValueError("Board dimensions must be positive")
+        patches = {label: tuple(cell) for label, cell in self.patches.items()}
+        occupied = frozenset(patches.values())
+        if len(occupied) != len(patches):
+            raise ValueError("Patches must occupy distinct tiles")
+        if any(not (0 <= x < self.width and 0 <= y < self.height)
+               for x, y in occupied):
+            raise ValueError("Patch outside board")
+        object.__setattr__(self, "patches", MappingProxyType(patches))
+        object.__setattr__(self, "_occupied", occupied)
 
     @property
     def area(self):
@@ -39,7 +54,7 @@ class Layout:
     def empty(self, cell):
         x, y = cell
         return (0 <= x < self.width and 0 <= y < self.height
-                and cell not in self.patches.values())
+                and cell not in self._occupied)
 
 
 @dataclass(frozen=True)
@@ -64,6 +79,9 @@ LAYOUTS = (
                               "C": (0, 2), "D": (4, 2)}),
     Layout("spacious", 7, 5, {"A": (0, 0), "B": (6, 0),
                                "C": (0, 4), "D": (6, 4)}),
+    # Put ZZ partners vertically and XX partners horizontally.
+    Layout("workload_aligned", 3, 3, {"A": (0, 0), "B": (0, 2),
+                                       "C": (2, 2), "D": (2, 0)}),
 )
 
 
@@ -82,6 +100,8 @@ def route(layout, operation, reserved=frozenset()):
                 and (x + dx, y + dy) not in reserved]
 
     starts, targets = ports(operation.first), set(ports(operation.second))
+    if not starts or not targets:
+        return None
     parents = {cell: None for cell in starts}
     queue = deque(starts)
     while queue:
@@ -103,17 +123,31 @@ def route(layout, operation, reserved=frozenset()):
 
 def schedule(layout, workload=WORKLOAD):
     """Deterministic greedy scheduling; makes no optimality claim."""
+    workload = tuple(workload)
     names = [op.name for op in workload]
     if len(set(names)) != len(names):
         raise ValueError("Measurement names must be unique")
-    if any(dep not in names for op in workload for dep in op.after):
+    name_set = set(names)
+    if any(dep not in name_set for op in workload for dep in op.after):
         raise ValueError("Unknown dependency")
+    for op in workload:
+        if op.basis not in OFFSETS:
+            raise ValueError("Only X and Z measurements are supported")
+        if op.first == op.second or any(p not in layout.patches
+                                       for p in (op.first, op.second)):
+            raise ValueError("Measurements need two distinct known patches")
+    # Only reconsider ready operations. Release dependents AFTER the step.
+    remaining = {op.name: len(set(op.after)) for op in workload}
+    dependents = {name: [] for name in names}
+    for index, op in enumerate(workload):
+        for dep in set(op.after):
+            dependents[dep].append(index)
+    ready = {i for i, op in enumerate(workload) if not remaining[op.name]}
     completed, steps = set(), []
     while len(completed) < len(workload):
         reserved, busy, current = set(), set(), []
-        for op in workload:
-            if op.name in completed or not set(op.after) <= completed:
-                continue
+        for index in sorted(ready):
+            op = workload[index]
             if busy.intersection((op.first, op.second)):
                 continue
             path = route(layout, op, reserved)
@@ -123,10 +157,17 @@ def schedule(layout, workload=WORKLOAD):
                             "patches": [op.first, op.second], "path": path})
             reserved.update(path)
             busy.update((op.first, op.second))
+            ready.remove(index)
         if not current:
             raise ValueError(f"{layout.name}: blocked route or cyclic dependencies")
         steps.append(current)
         completed.update(item["operation"] for item in current)
+        for item in current:
+            for index in dependents[item["operation"]]:
+                name = workload[index].name
+                remaining[name] -= 1
+                if remaining[name] == 0:
+                    ready.add(index)
     return steps
 
 
@@ -159,6 +200,8 @@ def validate_schedule(layout, steps, workload=WORKLOAD):
 
 def parity_circuit(basis, preparation):
     """Ideal representative-qubit measurement, NOT encoded lattice surgery."""
+    if basis not in OFFSETS:
+        raise ValueError("Only X and Z measurements are supported")
     qc = QuantumCircuit(3, 1)
     if preparation == "odd":
         qc.x(0)
@@ -181,8 +224,10 @@ def parity_circuit(basis, preparation):
     return qc
 
 
-def verify_quantum(shots, out):
-    backend = AerSimulator()
+def verify_quantum(shots, out=None):
+    if shots <= 0:
+        raise ValueError("shots must be positive")
+    backend = AerSimulator(method="stabilizer")
     results = {}
     for basis in ("Z", "X"):
         for preparation, expected in (("even", "0"), ("odd", "1"), ("bell", "0")):
@@ -194,9 +239,10 @@ def verify_quantum(shots, out):
             key = f"{basis}{basis}_{preparation}"
             results[key] = {"counts": counts, "expected_bit": expected,
                             "expected_eigenvalue": 1 if expected == "0" else -1}
-            fig = qc.draw("mpl")
-            fig.savefig(out / f"{key}.png", bbox_inches="tight")
-            plt.close(fig)
+            if out is not None:
+                fig = qc.draw("mpl")
+                fig.savefig(out / f"{key}.png", bbox_inches="tight")
+                plt.close(fig)
     return results
 
 
@@ -207,7 +253,9 @@ def draw_schedule(layout, steps, destination):
             for y in range(layout.height):
                 ax.add_patch(Rectangle((x, y), 1, 1, facecolor="white",
                                        edgecolor="#dddddd"))
-        for item, color in zip(step, ("#a8dadc", "#f4b183", "#c6b5e5")):
+        colors = ("#a8dadc", "#f4b183", "#c6b5e5")
+        for item_index, item in enumerate(step):
+            color = colors[item_index % len(colors)]
             for x, y in item["path"]:
                 ax.add_patch(Rectangle((x, y), 1, 1, facecolor=color, edgecolor="gray"))
         for label, (x, y) in layout.patches.items():
@@ -231,6 +279,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("challenge_results"))
     parser.add_argument("--shots", type=int, default=1024)
+    parser.add_argument("--no-plots", action="store_true",
+                        help="Skip figure rendering for quick experiments")
     args = parser.parse_args()
     if args.shots <= 0:
         parser.error("--shots must be positive")
@@ -244,12 +294,13 @@ def main():
                    "time_steps": len(steps), "operations": len(WORKLOAD),
                    "tile_steps": layout.area * len(steps)}
         summaries.append(summary)
-        draw_schedule(layout, steps, args.output / f"{layout.name}_schedule.png")
+        if not args.no_plots:
+            draw_schedule(layout, steps, args.output / f"{layout.name}_schedule.png")
         print(f"{layout.name}: {layout.area} tiles, {len(steps)} steps, "
               f"{summary['tile_steps']} tile-steps")
         for index, step in enumerate(steps, 1):
             print(f"  Step {index}: " + ", ".join(i["operation"] for i in step))
-    quantum = verify_quantum(args.shots, args.output)
+    quantum = verify_quantum(args.shots, None if args.no_plots else args.output)
     with (args.output / "comparison.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(summaries[0]))
         writer.writeheader()

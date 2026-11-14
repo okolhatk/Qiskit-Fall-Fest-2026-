@@ -1,0 +1,37 @@
+{
+  "baseline_commit": "938063c07bafcc15a182d94bd74a181db9495cbf",
+  "python": "3.14.6",
+  "method": "Best of 5 timing repeats; tracemalloc peak separately; excludes imports, fixture creation, plotting and native memory.",
+  "results": {
+    "route_60x60_502_patches": {
+      "before": {
+        "milliseconds": 63.5552,
+        "python_peak_bytes": 269960
+      },
+      "after": {
+        "milliseconds": 2.1198,
+        "python_peak_bytes": 269960
+      }
+    },
+    "chain_1000_operations": {
+      "before": {
+        "milliseconds": 55.5296,
+        "python_peak_bytes": 449392
+      },
+      "after": {
+        "milliseconds": 3.0026,
+        "python_peak_bytes": 643392
+      }
+    },
+    "rank_toric_72x144": {
+      "before": {
+        "milliseconds": 1.0581,
+        "python_peak_bytes": 87840
+      },
+      "after": {
+        "milliseconds": 0.2332,
+        "python_peak_bytes": 10838
+      }
+    }
+  }
+}

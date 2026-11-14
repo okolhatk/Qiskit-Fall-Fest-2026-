@@ -13,6 +13,13 @@
       "time_steps": 3,
       "operations": 4,
       "tile_steps": 105
+    },
+    {
+      "layout": "workload_aligned",
+      "tiles": 9,
+      "time_steps": 2,
+      "operations": 4,
+      "tile_steps": 18
     }
   ],
   "schedules": {
@@ -317,6 +324,68 @@
             [
               5,
               4
+            ]
+          ]
+        }
+      ]
+    ],
+    "workload_aligned": [
+      [
+        {
+          "operation": "AB_ZZ",
+          "basis": "Z",
+          "patches": [
+            "A",
+            "B"
+          ],
+          "path": [
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        {
+          "operation": "CD_ZZ",
+          "basis": "Z",
+          "patches": [
+            "C",
+            "D"
+          ],
+          "path": [
+            [
+              2,
+              1
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "BC_XX",
+          "basis": "X",
+          "patches": [
+            "B",
+            "C"
+          ],
+          "path": [
+            [
+              1,
+              2
+            ]
+          ]
+        },
+        {
+          "operation": "AD_XX",
+          "basis": "X",
+          "patches": [
+            "A",
+            "D"
+          ],
+          "path": [
+            [
+              1,
+              0
             ]
           ]
         }

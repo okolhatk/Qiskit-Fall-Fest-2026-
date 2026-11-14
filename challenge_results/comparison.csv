@@ -1,3 +1,4 @@
 layout,tiles,time_steps,operations,tile_steps
 compact,15,4,4,60
 spacious,35,3,4,105
+workload_aligned,9,2,4,18
