@@ -1,113 +1,97 @@
 # Presentation plan: Surface-Code Layout Optimization
 
-This is the checklist for what to put in the presentation. The matching spoken
-script is in [SPEAKER_NOTES.md](SPEAKER_NOTES.md).
+**Format: six slides, 4:00–4:30 total. Target: 4:15, excluding questions.**
+The matching spoken script is in [SPEAKER_NOTES.md](SPEAKER_NOTES.md).
+Use the short script rather than reading every slide annotation aloud.
 
-**Suggested format:** seven slides, approximately six minutes, plus questions.
-Timings are planning estimates; rehearse and adjust to the event's actual limit.
+**Central message:** workload-aware placement reduced tile-steps by 70%
+compared with the original compact layout, with bounds established within our
+restricted model and representative parity outcomes verified using Qiskit.
 
-**Central message:** Matching patch placement to a fixed measurement workload
-reduced space-time volume by 70% versus the original compact layout. We verified
-the resource bounds within our restricted model, checked representative quantum
-parities with Qiskit, and improved the classical implementation separately.
+## Timing and grading coverage
 
-## 1. Grading criteria and required evidence
+| Slide | Topic | Duration | Cumulative time | Main criteria |
+|---|---|---:|---|---|
+| 1 | Problem and fixed workload | 30 seconds | 0:00–0:30 | Methods, presentation |
+| 2 | Diagram and method | 45 seconds | 0:30–1:15 | Methods, presentation |
+| 3 | Qiskit integration | 50 seconds | 1:15–2:05 | Qiskit, methods |
+| 4 | Results and insight | 60 seconds | 2:05–3:05 | Effect, presentation |
+| 5 | Implementation and testing | 40 seconds | 3:05–3:45 | Methods, evidence |
+| 6 | Trade-offs and conclusion | 30 seconds | 3:45–4:15 | Effect, presentation |
 
-| Criterion | What the presentation must establish | Evidence to show | Slides |
-|---|---|---|---|
-| **Qiskit — 10%** | Qiskit performs a meaningful quantum check connected to the board operations. | ZZ and XX circuits; six ideal cases; 1,024 shots per case; expected counts. | 3 |
-| **Methods — 20%** | The method is creative for this task and uses QEC concepts accurately. | Boundary-aware placement; ancilla-mediated parity; BFS routing; dependency/conflict handling; explicit model. | 1, 2, 3, 5 |
-| **Effect — 30%** | The result yields an insight supported by a fair comparison. | Identical workload; 60/105/18 tile-steps; 70% improvement; scoped lower bounds; explanation of why placement matters. | 4, 5 |
-| **Presentation — 40%** | The team explains the result clearly and justifies its choices. | Readable diagrams, defined units, a consistent story, stated trade-offs, and defensible answers. | All |
+All four grading categories remain covered:
 
-Presentation quality applies throughout; the 40% weight does not mean dedicating
-40% of the talk to a slide about presentation. This plan addresses the rubric
-but does not guarantee a particular score.
+- **Qiskit — 10%:** actual circuits, simulator use, and measured parity outcomes.
+- **Methods — 20%:** boundary-aware placement, correct parity interpretation,
+  routing/scheduling choices, assumptions, and independent validation.
+- **Effect — 30%:** fixed-workload comparison, 70% improvement, explanation of
+  why placement matters, and scoped lower bounds.
+- **Presentation — 40%:** readable diagrams, defined metrics, justified choices,
+  a concise narrative, and honest limitations throughout.
 
-## 2. Slide-by-slide content
+## Slide 1 — Problem and fixed workload
 
-### Slide 1 — The problem and fixed workload
+**30 seconds.** Put these on the slide:
 
-**Time:** 35 seconds. **Purpose:** define what is being optimized.
-
-Include:
-
-- Title: **Surface-Code Layout Optimization** and the team members' names.
-- Question: **Can better placement reduce both space and measurement time?**
-- Workload: `ZZ(A,B)` and `ZZ(C,D)` → `XX(B,C)` and `XX(A,D)`.
+- Title and team names.
+- Question: **Can placement reduce both space and measurement time?**
+- `ZZ(A,B), ZZ(C,D)` → `XX(B,C), XX(A,D)`.
 - Both second-round measurements wait for both first-round measurements.
-- Definitions: space = board tiles; time = abstract steps;
-  **tile-steps = tiles × steps**.
+- **Tile-steps = board tiles × elapsed logical steps.**
 
-Show the workload as two rounds with an arrow between them. State that every
-layout executes exactly these same four measurements. Avoid opening with Python
-benchmarks before the audience understands the challenge objective.
+Explain that all layouts run the same four measurements. Tiles are logical
+resources, not individual physical qubits. Do not open with software benchmarks.
 
-### Slide 2 — Model, layout idea, and method
+## Slide 2 — Diagram and method
 
-**Time:** 50 seconds. **Purpose:** explain the method and assumptions.
+**45 seconds.** Use the
+[aligned-layout diagram](challenge_results/workload_aligned_schedule.png).
 
-Use [workload_aligned_schedule.png](challenge_results/workload_aligned_schedule.png).
+Keep the legend short:
 
-Include a small legend:
+- Yellow: data patches; colored tiles: auxiliary routes; white: idle workspace.
+- Solid horizontal edges: Z boundaries; dotted vertical edges: X boundaries.
+- Each panel: a later step on the same board.
 
-- Yellow A-D tiles = logical data patches.
-- Solid top/bottom edges = Z boundaries; dotted left/right edges = X boundaries.
-- Teal/orange = auxiliary paths; white = idle workspace that still counts.
-- Each panel = a later step on the same board.
+Explain the design: vertical ZZ partners and horizontal XX partners allow two
+nonoverlapping measurements per round. Idle tiles still count toward area.
 
-Explain the idea: **vertical ZZ partners and horizontal XX partners create
-disjoint routes within each round**.
+Show: **BFS shortest paths → ordered greedy scheduler → independent validator**.
+Justify BFS with the unweighted grid and greedy scheduling with low cost and
+deterministic operation order.
 
-Include three method labels: **shortest-path BFS → ordered greedy scheduling →
-independent validation**.
+Keep this model caption visible: **Fixed single-tile patches; fixed boundaries;
+rectangular board; nonempty auxiliary paths; one step per measurement regardless
+of length; no extra preparation/release cost.** Incidental contacts are inactive;
+concurrent operations cannot share data patches or auxiliary tiles.
 
-State the essential assumptions visibly, even if in smaller text:
+## Slide 3 — What Qiskit contributes
 
-- Fixed, single-tile patches with fixed X/Z orientation on a rectangular board.
-- Nonempty auxiliary paths; simultaneous measurements cannot share data or paths.
-- One step per joint measurement regardless of route length; no extra
-  preparation/release cost; incidental boundary contacts are inactive.
+**50 seconds.** Show [ZZ_bell.png](challenge_results/ZZ_bell.png) and
+[XX_bell.png](challenge_results/XX_bell.png) side by side.
 
-Justification: BFS matches the unweighted grid; greedy scheduling is inexpensive
-and deterministic. It is not generally a globally optimal scheduler.
+Label q0/q1 as data and q2 as ancilla. Point out the parity CNOTs and the
+Hadamard basis changes for XX. Preparation is before the barrier.
 
-### Slide 3 — What Qiskit contributes
+Include this results summary:
 
-**Time:** 60 seconds. **Purpose:** demonstrate meaningful quantum integration.
-
-Place these two circuits side by side:
-
-- [ZZ_bell.png](challenge_results/ZZ_bell.png).
-- [XX_bell.png](challenge_results/XX_bell.png).
-
-Label q0/q1 as data and q2 as ancilla. Explain that the two parity CNOTs collect
-ZZ information; H gates around that block enable XX measurement. Distinguish
-the Bell-preparation gates before the barrier from measurement logic after it.
-
-Include this compact results table:
-
-| Input case | ZZ result | XX result |
+| Input case | ZZ outcome | XX outcome |
 |---|---|---|
-| Even parity in the relevant basis | `0`: 1,024 shots | `0`: 1,024 shots |
-| Odd parity in the relevant basis | `1`: 1,024 shots | `1`: 1,024 shots |
-| Bell state | `0`: 1,024 shots | `0`: 1,024 shots |
+| Even parity in the relevant basis | All 1,024 shots: 0 | All 1,024 shots: 0 |
+| Odd parity in the relevant basis | All 1,024 shots: 1 | All 1,024 shots: 1 |
+| Bell state | All 1,024 shots: 0 | All 1,024 shots: 0 |
 
-Add: **0 ↔ eigenvalue +1; 1 ↔ eigenvalue -1**.
+Add: **0 = eigenvalue +1; 1 = eigenvalue -1**.
+Mention circuit construction, transpilation, and local Aer stabilizer simulation.
 
-Mention `QuantumCircuit`, transpilation, and local Qiskit Aer stabilizer
-simulation. These are Clifford circuits; no hardware job is required.
+Required qualification: **Representative parity checks, not encoded
+fault-tolerant lattice surgery.** The board scheduler is classical Python.
+The small zero beside the measurement arrow labels classical bit zero; use
+saved counts, not that label, as evidence of outcomes.
 
-Required qualification: **representative three-qubit parity checks, not a full
-encoded lattice-surgery simulation**. The classical scheduler does not run on
-a quantum processor. The printed `0` beside a circuit's measurement arrow is
-the classical-bit index, not an experimental outcome.
+## Slide 4 — Results and insight
 
-### Slide 4 — Results: the same workload, three layouts
-
-**Time:** 70 seconds. **Purpose:** make the main effect unmistakable.
-
-Display this table prominently:
+**60 seconds.** Keep this table large and readable:
 
 | Layout | Tiles | Steps | Tile-steps |
 |---|---:|---:|---:|
@@ -115,145 +99,97 @@ Display this table prominently:
 | Original spacious | 35 | 3 | 105 |
 | Workload-aligned | **9** | **2** | **18** |
 
-Show readable schedule images, using a progressive reveal or enlarging one at
-a time if all three would be too small:
+Callout: **Versus compact: 40% less area · 50% fewer steps · 70% fewer tile-steps.**
 
-- [compact_schedule.png](challenge_results/compact_schedule.png): four sequential operations.
-- [spacious_schedule.png](challenge_results/spacious_schedule.png): concurrent ZZ, separate XX steps.
-- [workload_aligned_schedule.png](challenge_results/workload_aligned_schedule.png): two concurrent operations in each of two steps.
+Keep the aligned diagram visible beside the table or reveal it again. There
+is not enough time to walk through every panel of all three layout diagrams;
+keep the [compact](challenge_results/compact_schedule.png) and
+[spacious](challenge_results/spacious_schedule.png) diagrams as backup.
 
-Call out the comparison against **original compact**, with the baseline named:
+Explain the insight: extra space saved a step but increased tile-steps to 105;
+matching placement to the workload instead improved both space and time.
 
-> **40% less area · 50% fewer steps · 70% fewer tile-steps**
+State the scoped bounds concisely:
 
-Explain the trade-off in the spacious baseline: it saves one step but increases
-tile-steps by 75%. The aligned placement improves both dimensions. This is a
-logical-resource result; milliseconds and Python memory do not belong in this table.
+- Two dependent rounds require at least two steps.
+- Independent routing checks reject all 4,104 placements on smaller eligible
+  rectangular boards; one-row/column boards lack the required ports.
+- **Nine tiles and two steps attain both bounds within this model.**
 
-### Slide 5 — Why this result matters, and the bounds
+The aligned board's idle center counts. This is not a full-game or hardware optimum.
 
-**Time:** 50 seconds. **Purpose:** substantiate the insight and optimality scope.
+## Slide 5 — Implementation and testing
 
-Use three statements:
+**40 seconds.** Put the implementation ideas in one line:
 
-1. **Placement should match the measurement workload:** extra workspace alone
-   did not yield the best space-time volume.
-2. **Time lower bound:** two dependent rounds require at least two steps.
-3. **Area lower bound:** an independent BFS rejects every one of 4,104 labeled
-   placements on smaller eligible rectangular boards because at least one
-   required operation is individually unroutable.
+**Occupancy sets · ordered ready lists · streaming validation · grid-line drawing**
 
-Add that one-row/column boards lack the required Z/X ports, and boards with
-fewer than four tiles cannot hold the data patches.
+Use one software benchmark in the spoken presentation:
 
-Conclusion: **9 tiles and 2 steps achieve both lower bounds under our model**.
-The corresponding minimum product is 18 tile-steps.
+> **300 contending operations: about 3.1× faster, 33% less peak Python memory.**
 
-Keep the scope statement visible: **fixed patches, fixed boundary orientation,
-rectangular boards, nonempty auxiliary paths, unchanged workload**.
+Caption: **Second pass versus the already-optimized version; local component
+benchmark, best of five timings; excludes native memory. Not a logical-time gain.**
 
-Do not call this a universal placement algorithm, a full-game optimum, a quantum
-advantage result, or a new general breakthrough in fault-tolerant computing.
-
-### Slide 6 — Efficient implementation and correctness evidence
-
-**Time:** 55 seconds. **Purpose:** support the method without distracting from
-the main logical-resource result.
-
-Explain these changes in plain language:
-
-- Occupancy sets avoid scanning every patch during routing.
-- Ordered ready lists avoid sorting all waiting operations each round.
-- Streaming validation avoids repeated completed-set and path copies.
-- Grid lines replace one graphics object per empty tile.
-
-Show only a few representative **second-pass** benchmarks:
-
-| Component fixture | Runtime improvement | Peak Python memory |
-|---|---:|---:|
-| Large-board routing | About 2.0× faster | Unchanged |
-| 300 contending operations | About 3.1× faster | 33% lower |
-| Render/save a 24×24 board | About 5.6× faster | 86% lower |
-
-Caption: **Compared with the already-optimized version; best of five timings;
-Python allocation tracking, not total process memory. Not end-to-end speedups.**
-
-Include the correctness evidence:
+Evidence bullets:
 
 - **11 tests pass normally and under `-O`.**
-- 1,600 independent route comparisons and 300 randomized schedule comparisons.
-- 4,104 smaller-layout checks; corrupt schedules rejected.
-- Six ideal parity cases pass; full-run JSON/CSV remain unchanged by the latest
-  software refinements.
+- **1,600** independent route comparisons; **300** randomized schedule comparisons.
+- Smaller-layout enumeration and corrupt-schedule checks.
+- Six parity cases pass; JSON/CSV results unchanged by the latest software refinements.
 
-The area enumeration supports the logical bound; the route/schedule comparisons
-support behavior preservation. Neither is a hardware noise test.
+Do not explain every optimization or benchmark here. Keep detailed complexity,
+rank calculation, and other timings for questions.
 
-### Slide 7 — Trade-offs, limits, and conclusion
+## Slide 6 — Trade-offs and conclusion
 
-**Time:** 40 seconds. **Purpose:** justify the selected balance and finish clearly.
+**30 seconds.** Include:
 
-Include:
+- **Trade-offs:** workload-specific placement, dependency bookkeeping, and a
+  greedy scheduler that is not generally optimal.
+- **Scope:** no noise, decoding, code distance, movement/rotation, direct
+  adjacent-patch surgery, or hardware timing model.
+- **Next step:** broader workloads and realistic operation costs.
 
-- **Recommended point:** the 9-tile layout plus exact BFS, ordered greedy
-  scheduling, streamed validation, and line-based drawing.
-- **Main trade-offs:** workload specialization; dependency-graph storage; more
-  bookkeeping code; no general greedy-scheduler optimality guarantee.
-- **Not modeled:** movement/rotation, direct adjacent-patch surgery, physical
-  noise, decoding, code distance, or hardware execution time.
-- **Next step:** test broader workloads and more realistic operation costs.
+Close with:
 
-Finish with:
+> **Better placement cut tile-steps by 70%; software refinements reduced overhead
+> while preserving tested results.**
 
-> **Better placement reduced tile-steps by 70%; verified software refinements
-> reduced computation overhead without changing tested results.**
+## Rehearsal and time control
 
-## 3. Presentation checklist
+- Rehearse toward **4:15**, giving a 15-second margin before 4:30.
+- Timings include brief pointing and slide transitions; they are estimates.
+- Aim for approximately 130 spoken words per minute, with short diagram pauses.
+- If behind schedule, skip the spoken software benchmark on slide 5; preserve
+  the test evidence, Qiskit result, main comparison, and model limitations.
+- If comfortably ahead, pause at the result table rather than adding another topic.
+- Do not run a live benchmark or full demo inside the timed talk. Use prepared
+  images and saved results; demonstrate the code afterward if requested.
+- Questions and backup material are outside the 4:00–4:30 presentation.
 
-- [ ] Every number names its baseline and unit.
-- [ ] All layouts use the same workload and dependency order.
-- [ ] White/idle tiles are included in area; the aligned board's center counts.
-- [ ] At least one board diagram is explained, not merely displayed.
-- [ ] At least one Qiskit circuit and its actual counts are explained.
-- [ ] A tile is described as a logical resource, not one physical qubit.
-- [ ] The nine-tile certificate is scoped to the implemented model.
-- [ ] Software benchmarks are separate from logical resource improvements.
-- [ ] No claim of quantum advantage, noise resilience, or hardware fault tolerance.
-- [ ] Each member can explain the contribution and answer the main questions.
-- [ ] Diagrams remain readable from the back of the room.
-- [ ] Rehearse against the actual time limit; do not try to read this file aloud.
+## Final checklist
 
-## 4. Optional backup material
+- [ ] Each number has a clear baseline and unit.
+- [ ] Logical tile-steps are separate from software runtime and memory.
+- [ ] The aligned board and at least one circuit are actually explained.
+- [ ] The Qiskit results and lower-bound scope are stated accurately.
+- [ ] Slides are readable; the script fits 4:00–4:30 in rehearsal.
+- [ ] No claim of quantum advantage, hardware fault tolerance, or general optimality.
 
-Keep these available for questions rather than crowding the main slides:
+## Backup evidence and preparation
 
-- Detailed complexity: route O(A) expected time/space after occupancy caching;
-  graph storage O(M + D); scheduler retries can still be quadratic.
-- Binary rank: packed XOR elimination in [gf2.py](gf2.py); this improves lab
-  utilities and is separate from the board layout result.
-- [results.json](challenge_results/results.json): exact scheduled paths and counts.
-- [refinement_benchmarks.json](challenge_results/refinement_benchmarks.json): timings,
-  memory measurements, and baseline revision.
-- [test_optimizations.py](test_optimizations.py): independent BFS and exhaustive
-  smaller-layout checks.
-- The six circuit images and all three schedule images in `challenge_results/`.
+Keep these available for questions:
 
-For the complete explanation, use [PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md).
+- [SPEAKER_NOTES.md](SPEAKER_NOTES.md): spoken script and judge Q&A.
+- [PROJECT_EXPLANATION.md](PROJECT_EXPLANATION.md): full methods and complexity.
+- [results.json](challenge_results/results.json): exact routes and quantum counts.
+- [refinement_benchmarks.json](challenge_results/refinement_benchmarks.json): timings and memory.
+- [test_optimizations.py](test_optimizations.py): independent checks and area certificate.
 
-## 5. Demo preparation
-
-Run the following from the repository directory in PowerShell before presenting:
+Before presenting, run from the repository directory in PowerShell:
 
 ```powershell
 .\qiskit-env\Scripts\python.exe -B -m unittest test_optimizations -v
 .\qiskit-env\Scripts\python.exe -B surface_code_challenge.py
 ```
-
-If showing a live numerical run, use:
-
-```powershell
-.\qiskit-env\Scripts\python.exe -B surface_code_challenge.py --no-plots --output demo_results
-```
-
-Keep the generated images available as a fallback. A live benchmark is optional;
-the measured results already have reproducible source and saved output.

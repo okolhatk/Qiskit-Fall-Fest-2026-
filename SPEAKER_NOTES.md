@@ -1,158 +1,123 @@
 # Speaker notes: Surface-Code Layout Optimization
 
-These notes correspond to the seven slides in
-[PRESENTATION_README.md](PRESENTATION_README.md). The target is approximately six
-minutes. Rehearse the script and shorten or expand it for your speaking pace.
+**Six slides. Target: 4:15; acceptable range: 4:00–4:30, excluding questions.**
+Follow [PRESENTATION_README.md](PRESENTATION_README.md) for slide content.
+Read only the quoted paragraphs. Bracketed cues are actions, not spoken text.
+Rehearse at approximately 130 words per minute with brief diagram pauses;
+actual duration depends on delivery. The Q&A below is backup, not part of the talk.
 
-Bracketed directions are actions for the presenter, not words to read aloud.
+## Slide 1 — Problem and fixed workload
 
-## Slide 1 — The problem and fixed workload
-
-**Target: 35 seconds.**
+**30 seconds | 0:00–0:30**
 
 “Our project asks whether better placement of logical-qubit patches can reduce
 both space and measurement time.
 
-We keep the computation fixed: first, ZZ measurements on A-B and C-D; then,
-after both finish, XX measurements on B-C and A-D.
+Every layout runs the same workload: ZZ on A-B and C-D, followed by XX on B-C
+and A-D. Both first-round measurements must finish before the second round.
 
-We measure space in board tiles and time in abstract measurement steps. Our
-combined metric is tile-steps: board area multiplied by elapsed steps. Keeping
-the workload identical lets us compare placements fairly.”
+We measure board area in tiles and elapsed time in abstract steps. Multiplying
+them gives tile-steps, our combined resource metric.”
 
-[Point to the two rounds and the dependency arrow.]
+[Point to the dependency arrow.]
 
-## Slide 2 — Model, layout idea, and method
+## Slide 2 — Diagram and method
 
-**Target: 50 seconds.**
+**45 seconds | 0:30–1:15**
 
-“In this diagram, yellow tiles are logical data patches. Solid horizontal edges
-are Z boundaries; dotted vertical edges are X boundaries. Colored tiles are
-auxiliary routes, and white tiles are idle space that still counts toward area.
+“Yellow tiles are logical data patches. Solid horizontal edges are Z boundaries;
+dotted vertical edges are X boundaries. Colored tiles are auxiliary routes.
+White tiles are idle, but still count toward area.
 
-Our idea is to arrange ZZ partners vertically and XX partners horizontally, so
-each round can use two disjoint routes.
+Our idea is to place ZZ partners vertically and XX partners horizontally, so
+each round has two disjoint routes.
 
-The software uses breadth-first search for shortest paths, a deterministic
-greedy scheduler, and an independent validator. We chose these because they
-are inexpensive and straightforward to check.
+We use breadth-first search for shortest paths, ordered greedy scheduling,
+and independent validation. These are deterministic and inexpensive to check.
 
-The model keeps patches fixed and assigns one step to each joint measurement,
-regardless of route length. It assumes no extra preparation or release cost.
-These assumptions define the scope of our results.”
+The model keeps patches fixed. Each joint measurement costs one step, regardless
+of path length, with no additional preparation or release cost.”
 
-[Point to a solid boundary, a dotted boundary, and a colored auxiliary tile.
-Emphasize that the two panels reuse the same board.]
+[Point to one boundary of each type, then the two routes in each panel.]
 
 ## Slide 3 — What Qiskit contributes
 
-**Target: 60 seconds.**
+**50 seconds | 1:15–2:05**
 
-“Qiskit checks the quantum measurement building blocks represented by our board
-operations. These circuits have two data qubits and one ancilla.
+“Qiskit verifies the measurement building blocks represented by these board
+operations. Each circuit has two data qubits and one ancilla.
 
-Before the barrier, a Hadamard and a CNOT prepare a Bell state. After the
-barrier, two CNOTs collect the data qubits' Z parity on the ancilla. Measuring
-that ancilla gives the ZZ result. For XX, Hadamard gates change the data's basis
-around the parity circuit.
+In the ZZ circuit, two CNOTs collect joint parity on the ancilla. Hadamard gates
+change the basis for XX measurement. Gates before the barrier prepare the input.
 
-We construct and transpile the circuits in Qiskit and run them locally using
-Aer's stabilizer simulator. We test even, odd, and Bell inputs for both bases,
-with 1,024 shots per case. Even and Bell cases return zero; odd cases return one,
-matching the expected parity eigenvalues.
+We construct and transpile the circuits with Qiskit, then run Aer's local
+stabilizer simulator. Six cases cover even, odd, and Bell inputs for both bases,
+with 1,024 shots each. Even and Bell cases return zero; odd cases return one,
+as expected.
 
-This demonstrates representative parity outcomes. It does not simulate fully
-encoded surface-code patches or fault-tolerant lattice surgery.”
+These are representative parity checks, not a fully encoded fault-tolerant
+lattice-surgery simulation.”
 
-[Point to preparation, then the parity CNOTs, then the ancilla readout. The
-small printed zero by the arrow labels classical bit zero; use the results
-table to show the actual outcomes.]
+[Point to the ancilla and the actual results table. The printed zero by the
+measurement arrow is a classical-bit index, not an outcome.]
 
-## Slide 4 — Results: the same workload, three layouts
+## Slide 4 — Results and insight
 
-**Target: 70 seconds.**
+**60 seconds | 2:05–3:05**
 
-“The original compact board has 15 tiles and takes four steps. Its two ZZ
-measurements reuse the middle corridor in separate steps, and the scheduler
-also separates the XX measurements. That gives 60 tile-steps.
+“The compact layout uses 15 tiles and four steps: 60 tile-steps. The spacious
+layout uses 35 tiles and three steps: 105 tile-steps. Extra space saves time,
+but increases total space-time volume.
 
-The spacious board has 35 tiles. Separate corridors allow the ZZ pair to run
-together, reducing the schedule to three steps. But 35 times three is 105:
-space-time volume actually increases by 75 percent compared with compact.
+Our aligned layout uses nine tiles and two steps: 18 tile-steps. Its center
+remains idle but is counted. Compared with compact, that means 40 percent less
+area, 50 percent fewer steps, and 70 percent fewer tile-steps.
 
-Our aligned board uses nine tiles. In the first step, the two vertical ZZ pairs
-use separate middle tiles. In the second, the horizontal XX pairs use separate
-top and bottom tiles. The center is unused, but we still count it.
+The insight is to match placement to the workload, rather than simply add space.
 
-The result is 18 tile-steps. Relative to compact, that is 40 percent less area,
-50 percent fewer steps, and a 70 percent reduction in tile-steps. Placement
-improves both resources for this workload.”
+Two dependent rounds require at least two steps. Independent checks reject all
+4,104 smaller eligible placements; one-row and one-column boards lack the
+required ports. Our layout therefore reaches both area and time lower bounds
+within this restricted model.”
 
-[Walk through the table, then point to the two paths in each aligned panel.
-Pause on 60 versus 18.]
+[Pause on 60 versus 18. Keep “within this model” visible.]
 
-## Slide 5 — Why this result matters, and the bounds
+## Slide 5 — Implementation and testing
 
-**Target: 50 seconds.**
+**40 seconds | 3:05–3:45**
 
-“The insight is that placement should match the measurement workload. Adding
-workspace alone did not produce the best space-time result.
+“We also removed redundant software work through occupancy sets, ordered ready
+lists, streaming validation, and simpler grid drawing.
 
-We can also justify the selected point. The dependency structure requires at
-least two steps. For area, an independent breadth-first search checks all 4,104
-placements on smaller eligible rectangular boards. Every placement makes at
-least one required measurement individually unroutable. One-row and one-column
-boards lack the required boundary access.
+Against the previously optimized version, a contended scheduling benchmark was
+about three times faster with 33 percent less peak Python memory. This is a
+component benchmark, separate from logical measurement time.
 
-Our nine-tile, two-step layout therefore reaches both lower bounds within this
-model. This is not a claim that the greedy algorithm is always optimal, or
-that nine tiles is a minimum under every rule of the full surface-code game.”
+All 11 tests pass normally and with Python optimization enabled. They include
+1,600 independent route comparisons, 300 randomized schedules, and invalid-output
+checks. The six quantum parity cases also pass, and the latest software changes
+preserve the numerical results.”
 
-[Keep the scope statement visible while saying “both lower bounds.”]
+[If running late, omit the benchmark paragraph; retain the testing evidence.]
 
-## Slide 6 — Efficient implementation and correctness evidence
+## Slide 6 — Trade-offs and conclusion
 
-**Target: 55 seconds.**
+**30 seconds | 3:45–4:15**
 
-“We separately improved the classical implementation. Occupancy sets avoid
-scanning every patch. Ordered ready lists avoid repeatedly sorting waiting
-operations. Streaming validation avoids copying paths and growing sets, and
-grid lines replace hundreds of background rectangle objects.
+“The main trade-offs are specialization to these pairings and extra dependency
+bookkeeping. The scheduler remains greedy for other workloads. We do not model
+physical noise, decoding, movement, or hardware timing.
 
-Compared with the already-optimized version, our latest benchmarks show about
-twice-as-fast large-board routing, three-times-as-fast contended scheduling,
-and 5.6-times-as-fast diagram generation. Scheduling and rendering also use
-less peak Python memory. These are component benchmarks, not reductions in
-logical measurement time or guaranteed whole-program speedups.
+Next, we would test broader workloads and more realistic costs.
 
-All 11 regression tests pass normally and with Python optimization enabled.
-They include independent routing comparisons, randomized schedules, and
-corrupted-output checks. The full demonstration still passes all six quantum
-parity cases, and its numerical outputs are unchanged by these refinements.”
+Our contribution is a verified placement improvement: 70 percent fewer tile-steps
+than compact, plus lower classical computation overhead while preserving the
+tested behavior.”
 
-[Point to the benchmark caption. Do not imply all program components improved
-by the largest listed factor.]
+[Finish on the aligned diagram and the 70% result.]
 
-## Slide 7 — Trade-offs, limits, and conclusion
+## Questions and short answers — outside the timed presentation
 
-**Target: 40 seconds.**
-
-“The balance we recommend is the workload-aligned layout with exact BFS,
-ordered greedy scheduling, and independent validation.
-
-The main trade-offs are specialization to these pairings and additional
-dependency bookkeeping. Other workloads can favor different placements, and
-the general scheduler remains heuristic. Our model also excludes physical
-noise, decoding, movement, and hardware timing.
-
-The next step is testing more workloads and realistic operation costs.
-
-Our main result is that better placement cut tile-steps by 70 percent. We also
-reduced classical computation overhead while preserving the tested behavior.”
-
-[Finish on the aligned-layout diagram and the 60-to-18 comparison.]
-
-## Questions and short answers
 
 **Why can the two operations in a round run together?**
 
