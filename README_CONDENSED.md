@@ -38,6 +38,101 @@ boards without the required ports, establishes nine tiles as minimum area
 - **Validator:** independently checks paths, dependencies, boundaries, and conflicts.
 - **Qiskit:** six ideal three-qubit circuits check ZZ/XX parity outcomes.
 
+## How the project addresses the grading criteria
+
+### Qiskit integration — 10%
+
+**Criterion:** How did the participants integrate Qiskit into their project?
+
+We use Qiskit to construct and verify the quantum measurement building blocks
+represented by the board operations. `QuantumCircuit` creates circuits with
+two data qubits and one ancilla. CNOT gates collect ZZ parity on the ancilla;
+Hadamard basis changes enable XX parity measurement. We transpile the circuits
+and execute them locally with Qiskit Aer's stabilizer simulator.
+
+Six cases cover even, odd, and Bell-state inputs for both measurement bases.
+Each demonstration case runs for **1,024 shots**. Even and Bell inputs return
+ancilla bit `0` in all shots; odd inputs return `1`. These correspond to parity
+eigenvalues +1 and -1. The X cases use the appropriate X-basis preparation.
+
+**Show the judges:** a [ZZ circuit](challenge_results/ZZ_bell.png), an
+[XX circuit](challenge_results/XX_bell.png), and the recorded counts in
+[results.json](challenge_results/results.json). Explain how each circuit relates
+to a scheduled board operation. The scheduler itself is classical Python;
+these checks do not simulate encoded patches or validate physical lattice surgery.
+
+### Methods and QEC accuracy — 20%
+
+**Criterion:** Is it creative and accurately incorporating QEC elements?
+
+The design idea is to **place patches according to the workload's measurement
+boundaries**, rather than simply increase the board size. Vertical ZZ partners
+and horizontal XX partners give each round separate auxiliary routes.
+
+The method incorporates QEC-relevant structure: logical patches, X/Z boundaries,
+ancilla-mediated joint parity measurements, and space-time resource accounting.
+Routes must touch the correct boundaries, avoid occupied tiles, and respect
+concurrent reservations. Dependencies prevent the second measurement round
+from executing before the first finishes.
+
+**Why these methods:** BFS gives exact shortest paths on the unweighted grid;
+ordered greedy scheduling is deterministic and inexpensive; independent
+validation catches invalid schedules. Stabilizer simulation fits the Clifford
+circuits used here. These choices make the experiment reproducible and easy
+to explain. The simplified model does not establish fault tolerance, and the
+greedy scheduler is not generally optimal.
+
+### Effect and insights — 30%
+
+**Criterion:** Does it provide conceptual breakthroughs and further insights?
+
+Our demonstrated insight is that **workload-aware placement can improve both
+space and time**, while more workspace alone can make total space-time cost
+worse. The spacious layout saves one step over compact but increases tile-steps
+from 60 to 105, or **75%**. The aligned layout instead reduces them to 18,
+or **70% below compact**, without changing the workload.
+
+The result is stronger than finding one favorable example: dependency constraints
+establish a two-step lower bound, and exhaustive smaller-board checks establish
+the nine-tile lower bound within the stated model. The aligned layout meets
+both bounds. This is a verified insight for this experiment, not a claim of a
+new general quantum-computing breakthrough or quantum advantage.
+
+**Show the judges:** the three-layout comparison, the two-step diagram, and
+the smaller-layout test in [test_optimizations.py](test_optimizations.py).
+Explain that the separate Python speedups improve experiment efficiency;
+they do not reduce logical measurement time. A useful next investigation is
+whether the advantage persists across other workloads and more realistic costs.
+
+### Presentation and design justification — 40%
+
+**Criterion:** Can the participants explain their methods succinctly and justify
+their design choice?
+
+Lead with the fixed workload and the 60-to-18 tile-step result. Then use the
+[aligned-layout diagram](challenge_results/workload_aligned_schedule.png) to
+show exactly which two operations run in each step. Define tile-steps before
+using the metric, and keep software milliseconds separate from logical steps.
+
+For a short presentation, follow this order:
+
+1. **Problem:** perform the same four measurements with less space and time.
+2. **Method:** arrange partners by boundary type; route and schedule without conflicts.
+3. **Evidence:** compare all three layouts and show the Qiskit parity results.
+4. **Justification:** explain the two lower bounds, the algorithm choices, and
+   why all board tiles—including idle tiles—count toward area.
+5. **Limits:** state the fixed-placement assumptions, workload specialization,
+   and absence of a noise or hardware model.
+
+**Suggested closing statement:** “For this fixed workload, matching patch
+placement to measurement boundaries reduced area by 40% and elapsed steps by
+50%, cutting tile-steps by 70%. Independent checks establish optimality within
+our restricted model, and Qiskit verifies the representative parity outcomes.”
+
+The strongest presentation explains why the result occurs and where it applies,
+rather than only listing percentages. These points map the evidence to the
+rubric; they do not guarantee a particular score.
+
 ## Software improvements
 
 - Occupancy sets reduce routing from **O(A × P)** to expected **O(A)** time,
