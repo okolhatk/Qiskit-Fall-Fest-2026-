@@ -11,6 +11,7 @@ import csv
 import json
 from collections import deque
 from dataclasses import dataclass, field
+from heapq import merge
 from types import MappingProxyType
 from pathlib import Path
 
@@ -102,21 +103,31 @@ def route(layout, operation, reserved=frozenset()):
     starts, targets = ports(operation.first), set(ports(operation.second))
     if not starts or not targets:
         return None
+    # A shared boundary tile is already a shortest route.
+    for cell in starts:
+        if cell in targets:
+            return [cell]
     parents = {cell: None for cell in starts}
     queue = deque(starts)
+    width, height, occupied = layout.width, layout.height, layout._occupied
     while queue:
         cell = queue.popleft()
-        if cell in targets:
-            path = []
-            while cell is not None:
-                path.append(cell)
-                cell = parents[cell]
-            return list(reversed(path))
         x, y = cell
         for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
             nxt = x + dx, y + dy
-            if layout.empty(nxt) and nxt not in reserved and nxt not in parents:
+            if (nxt not in parents and 0 <= nxt[0] < width
+                    and 0 <= nxt[1] < height and nxt not in occupied
+                    and nxt not in reserved):
                 parents[nxt] = cell
+                # FIFO discovery order has the same shortest-path tie-break
+                # as dequeue order. Do not expand the rest of this BFS layer.
+                if nxt in targets:
+                    path = [nxt]
+                    while cell is not None:
+                        path.append(cell)
+                        cell = parents[cell]
+                    path.reverse()
+                    return path
                 queue.append(nxt)
     return None
 
@@ -124,11 +135,10 @@ def route(layout, operation, reserved=frozenset()):
 def schedule(layout, workload=WORKLOAD):
     """Deterministic greedy scheduling; makes no optimality claim."""
     workload = tuple(workload)
-    names = [op.name for op in workload]
-    if len(set(names)) != len(names):
+    indices = {op.name: i for i, op in enumerate(workload)}
+    if len(indices) != len(workload):
         raise ValueError("Measurement names must be unique")
-    name_set = set(names)
-    if any(dep not in name_set for op in workload for dep in op.after):
+    if any(dep not in indices for op in workload for dep in op.after):
         raise ValueError("Unknown dependency")
     for op in workload:
         if op.basis not in OFFSETS:
@@ -137,65 +147,110 @@ def schedule(layout, workload=WORKLOAD):
                                        for p in (op.first, op.second)):
             raise ValueError("Measurements need two distinct known patches")
     # Only reconsider ready operations. Release dependents AFTER the step.
-    remaining = {op.name: len(set(op.after)) for op in workload}
-    dependents = {name: [] for name in names}
+    remaining = [0] * len(workload)
+    dependents = [None] * len(workload)
     for index, op in enumerate(workload):
-        for dep in set(op.after):
-            dependents[dep].append(index)
-    ready = {i for i, op in enumerate(workload) if not remaining[op.name]}
-    completed, steps = set(), []
-    while len(completed) < len(workload):
+        dependencies = set(op.after)
+        remaining[index] = len(dependencies)
+        for dep in dependencies:
+            parent = indices[dep]
+            if dependents[parent] is None:
+                dependents[parent] = []
+            dependents[parent].append(index)
+    del indices
+    ready = [i for i, count in enumerate(remaining) if count == 0]
+    completed, steps = 0, []
+    while completed < len(workload):
         reserved, busy, current = set(), set(), []
-        for index in sorted(ready):
+        deferred, finished = [], []
+        for index in ready:
             op = workload[index]
-            if busy.intersection((op.first, op.second)):
+            if op.first in busy or op.second in busy:
+                deferred.append(index)
                 continue
             path = route(layout, op, reserved)
             if path is None:
+                deferred.append(index)
                 continue
             current.append({"operation": op.name, "basis": op.basis,
                             "patches": [op.first, op.second], "path": path})
             reserved.update(path)
             busy.update((op.first, op.second))
-            ready.remove(index)
+            finished.append(index)
         if not current:
             raise ValueError(f"{layout.name}: blocked route or cyclic dependencies")
         steps.append(current)
-        completed.update(item["operation"] for item in current)
-        for item in current:
-            for index in dependents[item["operation"]]:
-                name = workload[index].name
-                remaining[name] -= 1
-                if remaining[name] == 0:
-                    ready.add(index)
+        completed += len(finished)
+        newly_ready = []
+        for parent in finished:
+            for index in dependents[parent] or ():
+                remaining[index] -= 1
+                if remaining[index] == 0:
+                    newly_ready.append(index)
+            dependents[parent] = None  # Release edges as soon as consumed.
+        # Deferred operations are already in input order. Each newly ready
+        # operation is sorted only once, not again on every contention retry.
+        newly_ready.sort()
+        ready = (list(merge(deferred, newly_ready)) if deferred and newly_ready
+                 else deferred or newly_ready)
     return steps
 
 
 def validate_schedule(layout, steps, workload=WORKLOAD):
-    """Independently check geometry, occupancy, dependencies and completeness."""
+    """Check the schedule independently, including when Python runs with -O.
+
+    Stream path cells into the step's reserved set instead of copying paths
+    and building another set per operation. Invalid schedules raise ValueError.
+    """
+    workload = tuple(workload)
     operations = {op.name: op for op in workload}
+    if len(operations) != len(workload):
+        raise ValueError("Measurement names must be unique")
+
+    def require(condition, message):
+        if not condition:
+            raise ValueError(message)
+
     completed = set()
     for step in steps:
+        require(bool(step), "Empty schedule step")
         reserved, busy, finishing = set(), set(), set()
         for item in step:
+            require(item["operation"] in operations, "Unknown operation")
             op = operations[item["operation"]]
-            assert op.name not in completed | finishing
-            assert set(op.after) <= completed
-            assert not busy.intersection((op.first, op.second))
-            path = [tuple(cell) for cell in item["path"]]
-            assert path and len(path) == len(set(path))
-            assert all(layout.empty(cell) for cell in path)
-            assert not reserved.intersection(path)
-            assert all(abs(a[0]-b[0]) + abs(a[1]-b[1]) == 1
-                       for a, b in zip(path, path[1:]))
-            for endpoint, label in ((path[0], op.first), (path[-1], op.second)):
+            require(op.basis in OFFSETS, "Unsupported measurement basis")
+            require(op.first != op.second and op.first in layout.patches
+                    and op.second in layout.patches, "Invalid measurement patches")
+            require(item["basis"] == op.basis
+                    and tuple(item["patches"]) == (op.first, op.second),
+                    "Measurement metadata does not match workload")
+            require(op.name not in completed and op.name not in finishing,
+                    "Duplicate operation")
+            require(all(dep in completed for dep in op.after),
+                    "Unfinished dependency")
+            require(op.first not in busy and op.second not in busy,
+                    "Concurrent operations share data patches")
+            first = previous = None
+            for raw_cell in item["path"]:
+                cell = tuple(raw_cell)
+                require(layout.empty(cell), "Path leaves board or crosses data patch")
+                require(cell not in reserved, "Repeated or reserved path tile")
+                if previous is not None:
+                    require(abs(cell[0]-previous[0]) + abs(cell[1]-previous[1]) == 1,
+                            "Discontinuous path")
+                else:
+                    first = cell
+                reserved.add(cell)
+                previous = cell
+            require(first is not None, "Empty path")
+            for endpoint, label in ((first, op.first), (previous, op.second)):
                 x, y = layout.patches[label]
-                assert (endpoint[0]-x, endpoint[1]-y) in OFFSETS[op.basis]
-            reserved.update(path)
+                require((endpoint[0]-x, endpoint[1]-y) in OFFSETS[op.basis],
+                        "Path touches wrong boundary")
             busy.update((op.first, op.second))
             finishing.add(op.name)
         completed.update(finishing)
-    assert completed == set(operations)
+    require(len(completed) == len(operations), "Incomplete schedule")
 
 
 def parity_circuit(basis, preparation):
@@ -249,10 +304,14 @@ def verify_quantum(shots, out=None):
 def draw_schedule(layout, steps, destination):
     fig, axes = plt.subplots(1, len(steps), figsize=(4*len(steps), 4), squeeze=False)
     for index, (ax, step) in enumerate(zip(axes[0], steps), 1):
-        for x in range(layout.width):
-            for y in range(layout.height):
-                ax.add_patch(Rectangle((x, y), 1, 1, facecolor="white",
-                                       edgecolor="#dddddd"))
+        # The empty board needs one background and W+H+2 grid segments,
+        # rather than W*H independently allocated Rectangle artists.
+        ax.add_patch(Rectangle((0, 0), layout.width, layout.height,
+                               facecolor="white", edgecolor="none", zorder=0))
+        ax.vlines(range(layout.width + 1), 0, layout.height,
+                  colors="#dddddd", linewidths=1, zorder=.5)
+        ax.hlines(range(layout.height + 1), 0, layout.width,
+                  colors="#dddddd", linewidths=1, zorder=.5)
         colors = ("#a8dadc", "#f4b183", "#c6b5e5")
         for item_index, item in enumerate(step):
             color = colors[item_index % len(colors)]

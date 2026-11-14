@@ -60,9 +60,17 @@ It halves elapsed steps and reduces area by 40% relative to compact, giving
 70% fewer tile-steps. Relative to spacious it uses 74.3% less area and 82.9%
 fewer tile-steps. It therefore dominates these two examples in this model.
 
-The two dependency rounds require at least two steps, so this particular
-schedule is time-optimal. This is NOT a proof of minimum area, global routing
-optimality, or performance for arbitrary workloads. The placement was found
+The two dependency rounds require at least two steps. The second optimization
+pass also certifies minimum area for this workload in our restricted model:
+all 4,104 assignments of four labeled patches to the 2x2, 2x3, 3x2, 2x4 and
+4x2 boards fail at least one individual route. A one-column board has no X
+ports; a one-row board has no Z ports. These exhaust all smaller rectangular
+boards that could hold four patches. This is tested with an independent BFS,
+not by assuming that failure of a greedy concurrent schedule proves impossibility.
+Thus 9 tiles, 2 steps and 18 tile-steps simultaneously attain their lower
+bounds for this workload and model. This is not a claim about the full game's
+rules, direct adjacent-patch surgery, rotations or different workloads.
+The placement was found
 by checking the 24 assignments of four labels to board corners on several
 small boards; the program stores the resulting layout, not a general optimizer.
 Changing pairings, boundaries or preparation and movement costs can change
@@ -89,7 +97,7 @@ where measurement order matters; omitting them does not establish commutation.
 
 Keep workload and assumptions fixed when comparing layouts. Explain both the
 speed gain and extra area; a faster layout may consume more tile-steps. Do not
-claim the greedy schedule is optimal or generalize from this one workload.
+claim the greedy algorithm is generally optimal or generalize from this workload.
 
 ## Software complexity and trade-offs
 
@@ -104,14 +112,30 @@ across all steps (R <= M*T).
   The layout adds O(P) storage and O(P) construction work. It snapshots the
   patch mapping to prevent stale cached occupancy; create a new Layout to move
   patches. BFS still returns a shortest path with the same tie-breaking.
+  The second pass exits when the first target is discovered, handles a shared
+  endpoint before allocating BFS state, checks visited cells first, and reverses
+  the result in place. This reduces work and temporary allocations without a
+  new cache. Worst-case time/space remain O(A), not a further Big-O reduction.
 - **Scheduling:** previously scans all M operations in every step and rebuilds
   dependency sets, costing O(T*(M+D)) overhead plus routing. Dependency-name
-  validation also previously cost O(M*D). The ready set processes each edge
-  once and sorts ready operations to preserve input order. New overhead is
-  O(M+D+R*log(M+1)), plus at most O(R*A) routing. A chain improves from
-  quadratic scanning to linear scheduling overhead. Contention can still make
-  R quadratic; this is not an optimal scheduler. Extra dependency storage is
-  O(M+D). Retained output paths cost O(M*A) in the worst case in both versions.
+  validation also previously cost O(M*D). The first pass used a sorted ready
+  set, with O(M+D+R*log(M+1)) overhead. The second pass keeps deferred operations
+  in order and sorts only newly released operations, then merges the two lists.
+  Each operation enters the newly-ready list only once. Bookkeeping is now
+  O(M+D+R+M*log(M+1)) in general, plus at most O(R*A) routing. A chain has
+  O(M+D) bookkeeping. Compact indexed lists replace name-keyed state, completed
+  operations are counted rather than stored again, and consumed dependency
+  lists are released. Auxiliary graph space remains O(M+D), with smaller
+  constants. Contention can still make R quadratic; this is not an optimal
+  scheduler. Retained output paths still cost O(M*A) in the worst case.
+- **Validation:** previously each operation copied `completed | finishing`,
+  causing up to O(M^2) work across a schedule. Separate membership queries
+  remove that cost. Path cells stream into the per-step reservation set;
+  there is no duplicate path list or per-path uniqueness set. With K total
+  path cells, validation is expected O(M+D+K) time and O(M+A) auxiliary space.
+  Explicit checks raise ValueError even under Python -O and also reject
+  incorrect basis/patch metadata. This strengthens checking without changing
+  valid schedule output; callers catching AssertionError should use ValueError.
 - **Binary rank:** the old dense elimination uses O(m^2*n) element work and
   copies m*n integer entries. The shared packed implementation validates and
   packs rows, then uses integer XOR. With rank r and integer word width w,
@@ -132,9 +156,34 @@ across all steps (R <= M*T).
   arbitrary statevector initialization was left unchanged for this reason.
   See the [Aer method documentation](https://qiskit.github.io/qiskit-aer/stubs/qiskit_aer.AerSimulator.html).
 - **Rendering:** `--no-plots` avoids Matplotlib drawing when only JSON/CSV is
-  needed. Default output still includes all diagrams. Rendering otherwise
-  creates O(T*A) tile artists. Paths beyond the third concurrent measurement
-  now also render (colors repeat instead of silently omitting paths).
+  needed. Default output still includes all diagrams. The second pass replaces
+  W*H background rectangles per step with one background and two collections
+  containing W+H+2 grid segments. Background geometry time/space becomes
+  O(T*(W+H)) instead of O(T*W*H). Data-patch and route rendering still costs
+  O(T*P+K), and raster pixel buffers are not reduced by this Big-O change.
+  Paths beyond the third concurrent measurement also render; colors repeat.
+
+## The recommended optimization point
+
+Keep the 9-tile placement, exact BFS, ordered greedy scheduler, streamed
+validation and line-based board drawing. For this fixed workload, the placement
+attains minimum space and time within the model. The software refinements
+remove repeated work or redundant objects while preserving exact results.
+This is the tested low-trade-off point, not a universal fastest implementation.
+
+The principal remaining drawbacks are workload-specific placement, a heuristic
+scheduler for other workloads, and more bookkeeping code than the original
+full-scan loop. The graph still costs O(M+D) extra space relative to scanning
+the raw workload, but now uses less memory than the previous optimized graph.
+Wrong schedule metadata is now rejected, and validation errors use ValueError.
+Grid-line rasterization may differ slightly from rectangle edges visually;
+tile positions, colors and routing information are preserved.
+
+We did not introduce a board-sized BFS array (which allocates for unvisited
+tiles), a route cache (which needs reservation-aware invalidation), fewer shots,
+or approximate routing. The existing packed GF(2) routine and quantum circuits
+are unchanged in this pass. Software timing gains do not reduce the already
+optimal two logical steps or establish physical fault tolerance.
 
 ## Reproduce checks and benchmarks
 
@@ -144,7 +193,7 @@ across all steps (R <= M*T).
 .\qiskit-env\Scripts\python.exe -B surface_code_challenge.py --no-plots --output quick_results
 ```
 
-On this machine with Python 3.14.6, the saved benchmark run measured:
+The first optimization pass on this machine with Python 3.14.6 measured:
 
 - BFS on 60x60 tiles with 502 patches: 63.56 ms -> 2.12 ms, about 30x faster.
 - A chain of 1,000 operations: 55.53 ms -> 3.00 ms, about 18.5x faster.
@@ -160,6 +209,45 @@ excluded. In particular, the routing memory measurement excludes the added
 occupancy cache. These are kernel measurements, not end-to-end speedups for
 the tiny default workload. Results vary by machine; raw values are saved in
 `challenge_results/optimization_benchmarks.json`.
+
+### Second pass: compared with the already-optimized version
+
+Run the updated benchmark against the pre-refinement commit:
+
+```powershell
+.\qiskit-env\Scripts\python.exe -B benchmark_optimizations.py --baseline 34cd9bcab83352d6dfb8fb6bbee4be6706473749 --output challenge_results/refinement_benchmarks.json
+.\qiskit-env\Scripts\python.exe -B -O -m unittest test_optimizations -q
+```
+
+The saved second-pass run measured:
+
+- Large-board routing: 2.3675 -> 1.1862 ms (2.0x faster); peak Python memory
+  unchanged at 269,960 bytes. This case still visits most reachable cells.
+- A chain of 1,000 operations: 3.1565 -> 2.2702 ms (1.39x faster); peak
+  643,392 -> 415,120 bytes (35% lower).
+- 300 operations contending for the same two patches: 5.0585 -> 1.6512 ms
+  (3.06x faster); peak 167,840 -> 111,944 bytes (33% lower).
+- Default 9-tile scheduling: 0.0122 -> 0.0089 ms; peak 3,288 -> 1,592 bytes
+  (52% lower). The absolute latency is already tiny.
+- Validation of the 1,000-operation chain: 4.2508 -> 1.4660 ms (2.90x faster);
+  peak 92,656 -> 76,192 bytes (18% lower), with stronger validation.
+- Rendering/saving a 24x24 board: 202.4035 -> 36.0205 ms (5.62x faster);
+  peak 6,196,459 -> 850,509 bytes (86% lower).
+
+These compare exact matching outputs and use the same best-of-five timing and
+separate tracemalloc method. The rendering case includes PNG saving; all other
+cases exclude plotting. Native memory, imports and fixture creation are excluded.
+The unchanged rank routine is also measured as a control: its small timing
+variation is measurement noise, not an improvement or regression in that code.
+The benchmark uses a trusted local Git revision; it executes that Python source.
+
+Second-pass checks: 11 tests pass normally and with -O. They include 1,600 exact
+route comparisons against an independent BFS, 300 randomized schedule
+comparisons, all 4,104 smaller-layout assignments, duplicate dependencies,
+corrupt schedules, JSON path input, four concurrent rendered paths, randomized
+GF(2) rank checks and six quantum parity cases against a statevector reference.
+The complete default CLI run still produces 4/3/2 steps and identical JSON/CSV
+results, with regenerated schedule images.
 
 Validation completed: six regression tests (including 300 randomized schedule
 comparisons and randomized GF(2) rank checks), six ideal quantum parity checks,
