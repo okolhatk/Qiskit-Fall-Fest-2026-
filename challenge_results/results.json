@@ -1,0 +1,370 @@
+{
+  "comparison": [
+    {
+      "layout": "compact",
+      "tiles": 15,
+      "time_steps": 4,
+      "operations": 4,
+      "tile_steps": 60
+    },
+    {
+      "layout": "spacious",
+      "tiles": 35,
+      "time_steps": 3,
+      "operations": 4,
+      "tile_steps": 105
+    }
+  ],
+  "schedules": {
+    "compact": [
+      [
+        {
+          "operation": "AB_ZZ",
+          "basis": "Z",
+          "patches": [
+            "A",
+            "B"
+          ],
+          "path": [
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              2,
+              1
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "CD_ZZ",
+          "basis": "Z",
+          "patches": [
+            "C",
+            "D"
+          ],
+          "path": [
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              2,
+              1
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "BC_XX",
+          "basis": "X",
+          "patches": [
+            "B",
+            "C"
+          ],
+          "path": [
+            [
+              3,
+              0
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              3,
+              2
+            ],
+            [
+              2,
+              2
+            ],
+            [
+              1,
+              2
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "AD_XX",
+          "basis": "X",
+          "patches": [
+            "A",
+            "D"
+          ],
+          "path": [
+            [
+              1,
+              0
+            ],
+            [
+              2,
+              0
+            ],
+            [
+              3,
+              0
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              3,
+              2
+            ]
+          ]
+        }
+      ]
+    ],
+    "spacious": [
+      [
+        {
+          "operation": "AB_ZZ",
+          "basis": "Z",
+          "patches": [
+            "A",
+            "B"
+          ],
+          "path": [
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ],
+            [
+              2,
+              1
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ],
+            [
+              5,
+              1
+            ],
+            [
+              6,
+              1
+            ]
+          ]
+        },
+        {
+          "operation": "CD_ZZ",
+          "basis": "Z",
+          "patches": [
+            "C",
+            "D"
+          ],
+          "path": [
+            [
+              0,
+              3
+            ],
+            [
+              1,
+              3
+            ],
+            [
+              2,
+              3
+            ],
+            [
+              3,
+              3
+            ],
+            [
+              4,
+              3
+            ],
+            [
+              5,
+              3
+            ],
+            [
+              6,
+              3
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "BC_XX",
+          "basis": "X",
+          "patches": [
+            "B",
+            "C"
+          ],
+          "path": [
+            [
+              5,
+              0
+            ],
+            [
+              5,
+              1
+            ],
+            [
+              5,
+              2
+            ],
+            [
+              5,
+              3
+            ],
+            [
+              5,
+              4
+            ],
+            [
+              4,
+              4
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              2,
+              4
+            ],
+            [
+              1,
+              4
+            ]
+          ]
+        }
+      ],
+      [
+        {
+          "operation": "AD_XX",
+          "basis": "X",
+          "patches": [
+            "A",
+            "D"
+          ],
+          "path": [
+            [
+              1,
+              0
+            ],
+            [
+              2,
+              0
+            ],
+            [
+              3,
+              0
+            ],
+            [
+              4,
+              0
+            ],
+            [
+              5,
+              0
+            ],
+            [
+              5,
+              1
+            ],
+            [
+              5,
+              2
+            ],
+            [
+              5,
+              3
+            ],
+            [
+              5,
+              4
+            ]
+          ]
+        }
+      ]
+    ]
+  },
+  "quantum_checks": {
+    "ZZ_even": {
+      "counts": {
+        "0": 1024
+      },
+      "expected_bit": "0",
+      "expected_eigenvalue": 1
+    },
+    "ZZ_odd": {
+      "counts": {
+        "1": 1024
+      },
+      "expected_bit": "1",
+      "expected_eigenvalue": -1
+    },
+    "ZZ_bell": {
+      "counts": {
+        "0": 1024
+      },
+      "expected_bit": "0",
+      "expected_eigenvalue": 1
+    },
+    "XX_even": {
+      "counts": {
+        "0": 1024
+      },
+      "expected_bit": "0",
+      "expected_eigenvalue": 1
+    },
+    "XX_odd": {
+      "counts": {
+        "1": 1024
+      },
+      "expected_bit": "1",
+      "expected_eigenvalue": -1
+    },
+    "XX_bell": {
+      "counts": {
+        "0": 1024
+      },
+      "expected_bit": "0",
+      "expected_eigenvalue": 1
+    }
+  }
+}
